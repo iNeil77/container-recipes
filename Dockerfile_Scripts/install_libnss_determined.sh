@@ -16,7 +16,7 @@ set -e
 # OpenShift 4.x appends the effective UID into /etc/passwd of the Container
 # during the creation of the Pod."
 
-make -C /tmp/det_dockerfile_scripts/libnss_determined libnss_determined.so.2 install
+make -C /tmp/Dockerfile_Scripts/libnss_determined libnss_determined.so.2 install
 
 if [ "$1" = "--first" ]; then
     sed -i -E -e '
