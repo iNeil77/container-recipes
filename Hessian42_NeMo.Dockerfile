@@ -218,13 +218,13 @@ RUN mkdir /container/multipl-e \
 RUN chown root:root /usr/lib
 
 # Copy various shell scripts that group dependencies for install
-COPY ./Dockerfile_Scripts /tmp/det_dockerfile_scripts
+COPY Dockerfile_Scripts /tmp/Dockerfile_Scripts
 
-RUN /tmp/det_dockerfile_scripts/add_det_nobody_user.sh \
-    && /tmp/det_dockerfile_scripts/install_libnss_determined.sh
+RUN /tmp/Dockerfile_Scripts/add_det_nobody_user.sh \
+    && /tmp/Dockerfile_Scripts/install_libnss_determined.sh
 
-RUN python -m pip install -r /tmp/det_dockerfile_scripts/additional-requirements-torch.txt \
-    && python -m pip install -r /tmp/det_dockerfile_scripts/notebook-requirements.txt \
+RUN python -m pip install -r /tmp/Dockerfile_Scripts/additional-requirements-torch.txt \
+    && python -m pip install -r /tmp/Dockerfile_Scripts/notebook-requirements.txt \
     && jupyter labextension disable "@jupyterlab/apputils-extension:announcements"
 
 RUN rm -r /tmp/*
