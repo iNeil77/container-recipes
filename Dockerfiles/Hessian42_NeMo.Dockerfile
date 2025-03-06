@@ -218,7 +218,7 @@ RUN mkdir /container/multipl-e \
 RUN chown root:root /usr/lib
 
 # Copy various shell scripts that group dependencies for install
-COPY ../Dockerfile_Scripts /tmp/det_dockerfile_scripts
+COPY Dockerfile_Scripts /tmp/det_dockerfile_scripts
 
 RUN /tmp/det_dockerfile_scripts/add_det_nobody_user.sh \
     && /tmp/det_dockerfile_scripts/install_libnss_determined.sh
