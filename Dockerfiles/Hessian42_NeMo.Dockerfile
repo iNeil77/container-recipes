@@ -99,6 +99,7 @@ RUN apt update --yes --quiet \
 RUN add-apt-repository --yes multiverse \
     && add-apt-repository --yes universe \
     && add-apt-repository --yes restricted \
+    && unattended-upgrade \
     && apt update --yes --quiet \
     && DEBIAN_FRONTEND=noninteractive apt install --yes --quiet --no-install-recommends \
         nvtop \
@@ -215,3 +216,15 @@ RUN mkdir /container/multipl-e \
 
 # NGC images contain user owned files in /usr/lib
 RUN chown root:root /usr/lib
+
+# Copy various shell scripts that group dependencies for install
+COPY ../Dockerfile_Scripts /tmp/det_dockerfile_scripts
+
+RUN /tmp/det_dockerfile_scripts/add_det_nobody_user.sh \
+    && /tmp/det_dockerfile_scripts/install_libnss_determined.sh
+
+RUN python -m pip install -r /tmp/det_dockerfile_scripts/additional-requirements-torch.txt \
+    && python -m pip install -r /tmp/det_dockerfile_scripts/notebook-requirements.txt \
+    && jupyter labextension disable "@jupyterlab/apputils-extension:announcements"
+
+RUN rm -r /tmp/*
