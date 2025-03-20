@@ -12,6 +12,9 @@ ENV GO111MODULE="off" \
     PYTHONHASHSEED=0 \
     PYTHONUNBUFFERED=1
 
+# Copy various shell scripts that group dependencies for install
+COPY Dockerfile_Scripts /tmp/Dockerfile_Scripts
+
 # Setup System Utilities and Languages: C, C++, Fortran, Haskell, Java, Lisp, Lua, OCaml, Pascal, Perl, R, Ruby and Scala
 RUN apt update --yes --quiet \
     && apt upgrade --yes --quiet \
@@ -148,7 +151,8 @@ RUN git clone https://github.com/EleutherAI/gpt-neox.git /opt/gpt-neox \
         sentencepiece \
         setuptools==69.5.1 \
         six \
-    && TORCH_CUDA_ARCH_LIST="7.0 7.5 8.0 8.6 8.9 9.0 10.0+PTX" python -c "from megatron.fused_kernels import load;load()"
+    && mv /tmp/Dockerfile_Scripts/install_neox_kernels.py /opt/gpt-neox \
+    && python /opt/gpt-neox/install_neox_kernels.py
 
 # Setup Perl testing dependencies
 RUN perl -MCPAN -e 'install Test::Deep' \
@@ -241,9 +245,6 @@ RUN mkdir /container/multipl-e \
 
 # NGC images contain user owned files in /usr/lib
 RUN chown root:root /usr/lib
-
-# Copy various shell scripts that group dependencies for install
-COPY Dockerfile_Scripts /tmp/Dockerfile_Scripts
 
 RUN /tmp/Dockerfile_Scripts/add_det_nobody_user.sh \
     && /tmp/Dockerfile_Scripts/install_libnss_determined.sh
