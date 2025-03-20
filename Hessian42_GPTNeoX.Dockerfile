@@ -128,6 +128,13 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/aws
     && ./aws/install --bin-dir /usr/local/bin --install-dir /usr/local/aws-cli --update \
     && rm -rf /tmp/awscliv2.zip ./aws
 
+# Setup GPTNeoX and Python training dependencies
+RUN git clone https://github.com/iNeil77/gpt-neox.git /opt/gpt-neox \
+    && cd /opt/gpt-neox \
+    && pip install -r requirements/requirements.txt \
+    && pip install -r requirements/requirements-wandb.txt \
+    && python -c "from megatron.fused_kernels import load;load()"
+
 # Setup Perl testing dependencies
 RUN perl -MCPAN -e 'install Test::Deep' \
     && perl -MCPAN -e 'install Test::Differences' \
