@@ -5,7 +5,7 @@ SHELL ["/bin/bash", "-c"]
 # Setup Environment Variables
 ENV CUDA_HOME=/usr/local/cuda \
     PYTHONUNBUFFERED=1 \
-    TORCH_CUDA_ARCH_LIST="7.0 7.5 8.0 8.6 8.9 9.0+PTX" \
+    TORCH_CUDA_ARCH_LIST="7.0 7.5 8.0 8.6 8.9 9.0 10.0+PTX" \
     LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/local/cuda-12.4/compat/" \
     HF_HUB_ENABLE_HF_TRANSFER=1
 

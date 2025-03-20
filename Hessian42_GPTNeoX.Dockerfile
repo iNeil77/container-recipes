@@ -3,14 +3,15 @@ FROM nvcr.io/nvidia/pytorch:25.02-py3
 
 SHELL ["/bin/bash", "-c"]
 
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONFAULTHANDLER=1 \
-    PYTHONHASHSEED=0 \
+ENV GO111MODULE="off" \
+    GOPATH="/container/go" \
     JUPYTER_CONFIG_DIR=/run/determined/jupyter/config \
     JUPYTER_DATA_DIR=/run/determined/jupyter/data \
     JUPYTER_RUNTIME_DIR=/run/determined/jupyter/runtime \
-    GOPATH="/container/go" \
-    GO111MODULE="off"
+    PYTHONFAULTHANDLER=1 \
+    PYTHONHASHSEED=0 \
+    PYTHONUNBUFFERED=1 \
+    TORCH_CUDA_ARCH_LIST="7.0 7.5 8.0 8.6 8.9 9.0 10.0+PTX"
 
 # Setup System Utilities and Languages: C, C++, Fortran, Haskell, Java, Lisp, Lua, OCaml, Pascal, Perl, R, Ruby and Scala
 RUN apt update --yes --quiet \
