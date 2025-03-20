@@ -148,8 +148,6 @@ RUN git clone https://github.com/iNeil77/gpt-neox.git /opt/gpt-neox \
         sentencepiece \
         setuptools==69.5.1 \
         six \
-    && pip install -r requirements/requirements.txt \
-    && pip install -r requirements/requirements-wandb.txt \
     && python -c "from megatron.fused_kernels import load;load()"
 
 # Setup Perl testing dependencies
