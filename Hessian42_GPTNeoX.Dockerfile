@@ -129,7 +129,7 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/aws
     && rm -rf /tmp/awscliv2.zip ./aws
 
 # Setup GPTNeoX and Python training dependencies
-RUN git clone https://github.com/iNeil77/gpt-neox.git /opt/gpt-neox \
+RUN git clone https://github.com/EleutherAI/gpt-neox.git /opt/gpt-neox \
     && cd /opt/gpt-neox \
     && pip install "deepspeed@git+https://github.com/EleutherAI/DeeperSpeed.git@91d1c55ba037b5ada99ae14884dff87a4dc5b9ea#egg=deepspeed" \
         "ftfy>=6.0.1" \
