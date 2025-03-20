@@ -131,8 +131,23 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/aws
 # Setup GPTNeoX and Python training dependencies
 RUN git clone https://github.com/iNeil77/gpt-neox.git /opt/gpt-neox \
     && cd /opt/gpt-neox \
-    && pip install setuptools==69.5.1 \
+    && pip install "deepspeed@git+https://github.com/EleutherAI/DeeperSpeed.git@91d1c55ba037b5ada99ae14884dff87a4dc5b9ea#egg=deepspeed" \
+        "ftfy>=6.0.1" \
+        "huggingface_hub>=0.11.0" \
+        "lm_dataformat@git+https://github.com/EleutherAI/lm_dataformat.git@4eec05349977071bf67fc072290b95e31c8dd836" \
+        "lm_eval>=0.4.0,<=0.4.1" \
+        "mpi4py>=3.0.3" \
+        "numpy<2.0" \
+        "pybind11>=2.6.2" \
+        "tiktoken>=0.1.2" \
+        "tokenizers>=0.12.1" \
+        "transformers>=4.38.0" \
         determined==0.38.0 \
+        jinja2==3.1.4 \
+        regex \
+        sentencepiece \
+        setuptools==69.5.1 \
+        six \
     && pip install -r requirements/requirements.txt \
     && pip install -r requirements/requirements-wandb.txt \
     && python -c "from megatron.fused_kernels import load;load()"
