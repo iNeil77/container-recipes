@@ -131,6 +131,8 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/aws
 # Setup GPTNeoX and Python training dependencies
 RUN git clone https://github.com/iNeil77/gpt-neox.git /opt/gpt-neox \
     && cd /opt/gpt-neox \
+    && pip install setuptools==69.5.1 \
+        determined==0.38.0 \
     && pip install -r requirements/requirements.txt \
     && pip install -r requirements/requirements-wandb.txt \
     && python -c "from megatron.fused_kernels import load;load()"
