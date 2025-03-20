@@ -10,8 +10,7 @@ ENV GO111MODULE="off" \
     JUPYTER_RUNTIME_DIR=/run/determined/jupyter/runtime \
     PYTHONFAULTHANDLER=1 \
     PYTHONHASHSEED=0 \
-    PYTHONUNBUFFERED=1 \
-    TORCH_CUDA_ARCH_LIST="7.0 7.5 8.0 8.6 8.9 9.0 10.0+PTX"
+    PYTHONUNBUFFERED=1
 
 # Setup System Utilities and Languages: C, C++, Fortran, Haskell, Java, Lisp, Lua, OCaml, Pascal, Perl, R, Ruby and Scala
 RUN apt update --yes --quiet \
@@ -149,7 +148,7 @@ RUN git clone https://github.com/EleutherAI/gpt-neox.git /opt/gpt-neox \
         sentencepiece \
         setuptools==69.5.1 \
         six \
-    && python -c "from megatron.fused_kernels import load;load()"
+    && TORCH_CUDA_ARCH_LIST="7.0 7.5 8.0 8.6 8.9 9.0 10.0+PTX" python -c "from megatron.fused_kernels import load;load()"
 
 # Setup Perl testing dependencies
 RUN perl -MCPAN -e 'install Test::Deep' \
