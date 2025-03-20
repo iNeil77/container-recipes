@@ -38,7 +38,10 @@ RUN apt update --yes --quiet \
     ghc \
     gnupg \
     htop \
+    ibutils \
     ibverbs-providers \
+    ibverbs-utils \
+    infiniband-diags \
     iotop \
     iproute2 \
     jq \
