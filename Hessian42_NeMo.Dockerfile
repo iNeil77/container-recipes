@@ -26,6 +26,7 @@ RUN apt update -yqq \
     apt-listchanges \
     apt-transport-https \
     apt-utils \
+    bat \
     bc \
     bison \
     ca-certificates \
@@ -34,6 +35,7 @@ RUN apt update -yqq \
     debhelper \
     devscripts \
     dmidecode \
+    duf \
     emacs \
     erlang \
     erlang-base \
@@ -41,6 +43,7 @@ RUN apt update -yqq \
     ghc \
     gnupg \
     htop \
+    hyperfine \
     ibutils \
     ibverbs-providers \
     ibverbs-utils \
@@ -86,13 +89,18 @@ RUN apt update -yqq \
     pybind11-dev \
     r-base \
     racket \
+    ripgrep \
     rlwrap \
+    rsync \
     ruby \
     sbcl \
     scala \
+    screen \
     software-properties-common \
     sudo \
     tmux \
+    tre-command \
+    tree \
     unattended-upgrades \
     unzip \
     util-linux \
@@ -107,8 +115,7 @@ RUN add-apt-repository -y multiverse \
     && add-apt-repository -y restricted \
     && unattended-upgrade \
     && apt update -yqq \
-    && DEBIAN_FRONTEND=noninteractive apt install -yqq \
-        nvtop \
+    && DEBIAN_FRONTEND=noninteractive apt install -yqq nvtop \
     && apt autoremove \
     && apt clean
 
@@ -184,8 +191,7 @@ RUN add-apt-repository -y ppa:longsleep/golang-backports \
     && ln -s /usr/lib/go-1.21/bin/go /usr/bin/go \
     && go get github.com/stretchr/testify/assert \
     && go get github.com/stretchr/testify/mock \
-    && go get github.com/stretchr/testify/require \
-    && go get github.com/go-enry/go-enry/v2
+    && go get github.com/stretchr/testify/require
 
 # Setup JS/TS and auxiliary tools
 RUN curl -fsSL https://deb.nodesource.com/setup_current.x | bash - \
@@ -258,6 +264,11 @@ RUN (type -p wget >/dev/null || (sudo apt update && sudo apt-get install wget -y
 RUN wget https://github.com/joernio/joern/releases/download/v4.0.318/joern-cli.zip -O /tmp/joern-cli.zip \
     && unzip /tmp/joern-cli.zip -d /container/ \
     && rm -rf /tmp/joern-cli.zip
+
+# Install Enry CLI
+RUN wget https://github.com/go-enry/enry/releases/download/v1.2.0/enry-v1.2.0-linux-amd64.tar.gz -O /tmp/enry.tar.gz \
+    && tar -xzf /tmp/enry.tar.gz -C /usr/local/bin/ \
+    && rm -rf /tmp/enry.tar.gz
 
 # NGC images contain user owned files in /usr/lib
 RUN chown root:root /usr/lib
