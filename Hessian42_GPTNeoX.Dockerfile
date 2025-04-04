@@ -92,7 +92,7 @@ RUN apt update -yqq \
     ripgrep \
     rlwrap \
     rsync \
-    ruby \
+    ruby-dev \
     sbcl \
     scala \
     screen \
