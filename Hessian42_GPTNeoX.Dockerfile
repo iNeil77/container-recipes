@@ -106,7 +106,7 @@ RUN add-apt-repository -y multiverse \
     && add-apt-repository -y universe \
     && add-apt-repository -y restricted \
     && unattended-upgrade \
-    && apt update --yqq \
+    && apt update -yqq \
     && DEBIAN_FRONTEND=noninteractive apt install -yqq \
         nvtop \
     && apt autoremove \
@@ -284,6 +284,9 @@ RUN wget https://github.com/joernio/joern/releases/download/v4.0.318/joern-cli.z
 
 # NGC images contain user owned files in /usr/lib
 RUN chown root:root /usr/lib
+
+# Copy various shell scripts that group dependencies for install
+COPY Dockerfile_Scripts /tmp/Dockerfile_Scripts
 
 RUN /tmp/Dockerfile_Scripts/add_det_nobody_user.sh \
     && /tmp/Dockerfile_Scripts/install_libnss_determined.sh
