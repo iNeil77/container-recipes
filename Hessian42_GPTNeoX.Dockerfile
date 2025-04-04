@@ -16,9 +16,9 @@ ENV GO111MODULE="off" \
 COPY Dockerfile_Scripts /tmp/Dockerfile_Scripts
 
 # Setup System Utilities and Languages: C, C++, Fortran, Haskell, Java, Lisp, Lua, OCaml, Pascal, Perl, R, Ruby and Scala
-RUN apt update --yes --quiet \
-    && apt upgrade --yes --quiet \
-    && DEBIAN_FRONTEND=noninteractive apt install --yes --quiet --no-install-recommends \
+RUN apt update -yqq \
+    && apt upgrade -yqq \
+    && DEBIAN_FRONTEND=noninteractive apt install -yqq \
     apache2 \
     apache2-bin \
     apache2-data \
@@ -102,12 +102,12 @@ RUN apt update --yes --quiet \
     && rm -rf /var/lib/apt/lists/*
 
 # Add multiverse, universe and restricted repositories and install additional packages
-RUN add-apt-repository --yes multiverse \
-    && add-apt-repository --yes universe \
-    && add-apt-repository --yes restricted \
+RUN add-apt-repository -y multiverse \
+    && add-apt-repository -y universe \
+    && add-apt-repository -y restricted \
     && unattended-upgrade \
-    && apt update --yes --quiet \
-    && DEBIAN_FRONTEND=noninteractive apt install --yes --quiet --no-install-recommends \
+    && apt update --yqq \
+    && DEBIAN_FRONTEND=noninteractive apt install -yqq \
         nvtop \
     && apt autoremove \
     && apt clean
@@ -165,9 +165,9 @@ RUN R -e "install.packages('testthat', repos='http://cran.rstudio.com/')" \
 
 # Setup Php and its testing dependencies
 RUN add-apt-repository ppa:ondrej/php \
-    && apt update --yes --quiet \
-    && DEBIAN_FRONTEND=noninteractive apt install --yes --quiet --no-install-recommends php8.4 \
-    && DEBIAN_FRONTEND=noninteractive apt install --yes --quiet --no-install-recommends \
+    && apt update -yqq \
+    && DEBIAN_FRONTEND=noninteractive apt install -yqq php8.4 \
+    && DEBIAN_FRONTEND=noninteractive apt install -yqq \
         php8.4-bcmath \
         php8.4-cgi \
         php8.4-cli \
@@ -200,12 +200,15 @@ RUN wget -qO- https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg  --dea
 RUN echo 'deb [signed-by=/usr/share/keyrings/dart.gpg arch=amd64] https://storage.googleapis.com/download.dartlang.org/linux/debian stable main' | tee /etc/apt/sources.list.d/dart_stable.list
 RUN apt-get update -yqq && apt-get install -yqq dart
 
-# Setup Go and its testing dependencies
-RUN add-apt-repository --yes ppa:longsleep/golang-backports \
-    && apt update --yes --quiet \
-    && DEBIAN_FRONTEND=noninteractive apt install --yes --quiet --no-install-recommends golang-1.21 \
+# Setup Go, its testing dependencies and go-enry
+RUN add-apt-repository -y ppa:longsleep/golang-backports \
+    && apt update -yqq \
+    && DEBIAN_FRONTEND=noninteractive apt install -yqq golang-1.21 \
     && ln -s /usr/lib/go-1.21/bin/go /usr/bin/go \
-    && go get github.com/stretchr/testify/assert
+    && go get github.com/stretchr/testify/assert \
+    && go get github.com/stretchr/testify/mock \
+    && go get github.com/stretchr/testify/require \
+    && go get github.com/go-enry/go-enry/v2
 
 # Setup JS/TS and auxiliary tools
 RUN curl -fsSL https://deb.nodesource.com/setup_current.x | bash - \
@@ -242,6 +245,42 @@ ENV PATH="/container/julia-1.11.3/bin:${PATH}"
 # Install Java testing dependencies
 RUN mkdir /container/multipl-e \
     && wget https://repo.mavenlibs.com/maven/org/javatuples/javatuples/1.2/javatuples-1.2.jar -O /container/multipl-e/javatuples-1.2.jar
+
+# Install LLVM
+RUN wget https://apt.llvm.org/llvm.sh -O /tmp/llvm.sh \
+    && chmod +x /tmp/llvm.sh \
+    && /tmp/llvm.sh 20 all \
+    && rm -rf /tmp/llvm.sh
+
+# Install Ruby/Rails testing dependencies and GitHub linguist
+RUN gem install rails \ 
+    && gem install minitest \
+    && gem install minitest-reporters \
+    && gem install minitest-rails \
+    && gem install minitest-spec-rails \
+    && gem install minitest-spec-context \
+    && gem install minitest-hooks \
+    && gem install minitest-retry \
+    && gem install rake \
+    && gem install activesupport \
+    && gem install github-linguist \
+    && gem install github-markup \
+    && gem install github-pages
+
+# Install GitHub CLI
+RUN (type -p wget >/dev/null || (sudo apt update && sudo apt-get install wget -y)) \
+    && sudo mkdir -p -m 755 /etc/apt/keyrings \
+    && out=$(mktemp) && wget -nv -O$out https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+    && cat $out | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+    && sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+    && sudo apt update \
+    && sudo apt install gh -y
+
+# Install Joern CLI
+RUN wget https://github.com/joernio/joern/releases/download/v4.0.318/joern-cli.zip -O /tmp/joern-cli.zip \
+    && unzip /tmp/joern-cli.zip -d /container/ \
+    && rm -rf /tmp/joern-cli.zip
 
 # NGC images contain user owned files in /usr/lib
 RUN chown root:root /usr/lib
