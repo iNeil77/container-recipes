@@ -1,7 +1,7 @@
 FROM nvcr.io/nvidia/pytorch:25.06-py3
 # Ubuntu 24.04
 
-SHELL ["/bin/bash", "-c"]
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ENV GO111MODULE="off" \
     GOPATH="/container/go" \

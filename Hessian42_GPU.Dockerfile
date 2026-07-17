@@ -1,7 +1,7 @@
 FROM nvcr.io/nvidia/cuda-dl-base:25.06-cuda12.9-devel-ubuntu24.04
 # Ubuntu 24.04
 
-SHELL ["/bin/bash", "-c"]
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ENV GO111MODULE="off" \
     GOPATH="/container/go" \
