@@ -237,7 +237,8 @@ RUN curl -fsSL https://deb.nodesource.com/setup_current.x | bash - \
     && npm install -g typescript
 
 # Setup Dlang
-RUN wget https://netcologne.dl.sourceforge.net/project/d-apt/files/d-apt.list -O /etc/apt/sources.list.d/d-apt.list \
+RUN wget https://master.dl.sourceforge.net/project/d-apt/files/d-apt.sources -O /etc/apt/sources.list.d/d-apt.sources \
+    && wget https://master.dl.sourceforge.net/project/d-apt/files/d-apt.asc -O /etc/apt/keyrings/d-apt.asc \
     && apt update --allow-insecure-repositories \
     && apt -y --allow-unauthenticated install --reinstall d-apt-keyring \
     && apt update \
