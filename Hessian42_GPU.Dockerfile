@@ -134,7 +134,7 @@ RUN add-apt-repository ppa:deki/firejail \
     && apt clean
 
 # Install Google Cloud CLI
-RUN curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg \
+RUN curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg \
     && echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list \
     && apt-get update -yqq \
     && apt-get install -yqq \
@@ -147,7 +147,7 @@ RUN curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -
         google-cloud-cli-cloud-build-local
 
 # Install AWS CLI
-RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/awscliv2.zip" \
+RUN curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/awscliv2.zip" \
     && unzip /tmp/awscliv2.zip \
     && ./aws/install --bin-dir /usr/local/bin --install-dir /usr/local/aws-cli --update \
     && rm -rf /tmp/awscliv2.zip ./aws
@@ -187,7 +187,7 @@ RUN add-apt-repository ppa:ondrej/php \
         php8.4-zip
 
 # Clojure
-RUN curl -L -O https://github.com/clojure/brew-install/releases/latest/download/linux-install.sh
+RUN curl -fsSL -L -O https://github.com/clojure/brew-install/releases/latest/download/linux-install.sh
 RUN chmod +x linux-install.sh
 RUN ./linux-install.sh --prefix /container/clojure
 ENV PATH="/container/clojure/bin:${PATH}"
@@ -233,11 +233,11 @@ RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 3FA7E03280
     && DEBIAN_FRONTEND=noninteractive apt install -yqq dotnet-sdk-8.0 dotnet-runtime-8.0
 
 # Setup Swift
-RUN curl https://download.swift.org/swift-6.0.3-release/ubuntu2404/swift-6.0.3-RELEASE/swift-6.0.3-RELEASE-ubuntu24.04.tar.gz | tar xz -C /container/
+RUN curl -fsSL https://download.swift.org/swift-6.0.3-release/ubuntu2404/swift-6.0.3-RELEASE/swift-6.0.3-RELEASE-ubuntu24.04.tar.gz | tar xz -C /container/
 ENV PATH="/container/swift-6.0.3-RELEASE-ubuntu24.04/usr/bin:${PATH}"
 
 # Setup Julia
-RUN curl https://julialang-s3.julialang.org/bin/linux/x64/1.10/julia-1.10.11-linux-x86_64.tar.gz | tar xz -C /container/
+RUN curl -fsSL https://julialang-s3.julialang.org/bin/linux/x64/1.10/julia-1.10.11-linux-x86_64.tar.gz | tar xz -C /container/
 ENV PATH="/container/julia-1.10.11/bin:${PATH}"
 
 # Install Java testing dependencies
