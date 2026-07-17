@@ -1,4 +1,4 @@
-FROM nvcr.io/nvidia/pytorch:25.02-py3
+FROM nvcr.io/nvidia/pytorch:25.06-py3
 # Ubuntu 24.04
 
 SHELL ["/bin/bash", "-c"]
@@ -119,6 +119,13 @@ RUN add-apt-repository -y multiverse \
     && apt autoremove \
     && apt clean
 
+# Add Firejail PPA and install Firejail
+RUN add-apt-repository ppa:deki/firejail \
+    && apt update -yqq \
+    && DEBIAN_FRONTEND=noninteractive apt install -yqq firejail firejail-profiles \
+    && apt autoremove \
+    && apt clean
+
 # Install Google Cloud CLI
 RUN curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg \
     && echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list \
@@ -132,7 +139,7 @@ RUN curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -
         google-cloud-cli-cbt \
         google-cloud-cli-cloud-build-local
 
-# Insrall AWS CLI
+# Install AWS CLI
 RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/awscliv2.zip" \
     && unzip /tmp/awscliv2.zip \
     && ./aws/install --bin-dir /usr/local/bin --install-dir /usr/local/aws-cli --update \
