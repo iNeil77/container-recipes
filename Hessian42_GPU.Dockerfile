@@ -237,8 +237,8 @@ RUN curl https://download.swift.org/swift-6.0.3-release/ubuntu2404/swift-6.0.3-R
 ENV PATH="/container/swift-6.0.3-RELEASE-ubuntu24.04/usr/bin:${PATH}"
 
 # Setup Julia
-RUN curl https://julialang-s3.julialang.org/bin/linux/x64/1.11/julia-1.11.3-linux-x86_64.tar.gz | tar xz -C /container/
-ENV PATH="/container/julia-1.11.3/bin:${PATH}"
+RUN curl https://julialang-s3.julialang.org/bin/linux/x64/1.10/julia-1.10.11-linux-x86_64.tar.gz | tar xz -C /container/
+ENV PATH="/container/julia-1.10.11/bin:${PATH}"
 
 # Install Java testing dependencies
 RUN mkdir /container/multipl-e \
