@@ -78,7 +78,8 @@ ENV GO111MODULE="off" \
     PYTHONHASHSEED=0 \
     PYTHONUNBUFFERED=1
 
-# Single copy of the helper scripts, placed just before first use
+# Single copy of the helper scripts. Kept under /tmp until the final layer,
+# which removes them. No intermediate layer deletes /tmp/* anymore.
 COPY Dockerfile_Scripts /tmp/Dockerfile_Scripts
 
 # ---------------------------------------------------------------------------
@@ -166,6 +167,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       bc \
       bison \
       check \
+      cmake \
       daemontools \
       debhelper \
       devscripts \
@@ -214,6 +216,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       lsof \
       lua-unit \
       lua5.3 \
+      make \
       moreutils \
       net-tools \
       nfs-common \
@@ -288,7 +291,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       gh \
  && ln -s /usr/lib/go-1.21/bin/go /usr/bin/go \
  && unattended-upgrade \
- && /tmp/Dockerfile_Scripts/apt_cleanup.sh
+ && bash /tmp/Dockerfile_Scripts/apt_cleanup.sh
 
 # ---------------------------------------------------------------------------
 # LLVM 20 — named subprojects only, not `all`
@@ -299,7 +302,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
  && chmod +x /tmp/llvm.sh \
  && /tmp/llvm.sh 20 clang lldb lld \
  && rm -f /tmp/llvm.sh \
- && /tmp/Dockerfile_Scripts/apt_cleanup.sh
+ && bash /tmp/Dockerfile_Scripts/apt_cleanup.sh
 
 # ---------------------------------------------------------------------------
 # Language-level test dependencies (each cleans its own cache in-layer)
@@ -309,7 +312,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 RUN perl -MCPAN -e 'install Test::Deep' \
  && perl -MCPAN -e 'install Test::Differences' \
  && perl -MCPAN -e 'install Data::Compare' \
- && rm -rf /root/.cpan /root/.cpanm /tmp/*
+ && rm -rf /root/.cpan /root/.cpanm
 
 # R
 RUN R -e "install.packages('testthat', repos='http://cran.rstudio.com/')" \
@@ -325,7 +328,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 # JS/TS
 RUN npm install -g lodash typescript \
  && npm cache clean --force \
- && rm -rf /root/.npm /tmp/*
+ && rm -rf /root/.npm
 
 # Ruby/Rails + GitHub linguist (--no-document skips rdoc/ri)
 RUN gem install --no-document \

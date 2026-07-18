@@ -9,7 +9,6 @@ rm -rf \
     /var/cache/apt/archives/*.deb \
     /var/cache/apt/archives/partial/* \
     /var/cache/apt/*.bin \
-    /tmp/* \
     /var/tmp/* \
     /usr/share/man/?? \
     /usr/share/man/??_* \
