@@ -1,10 +1,10 @@
 # syntax=docker/dockerfile:1.7
-# Run as: sudo DOCKER_BUILDKIT=1 docker build -t ineil77/hessian42-gpu-exec:18072026 -f Hessian42_GPU.Dockerfile .
+# Run as: sudo DOCKER_BUILDKIT=1 docker build -t ineil77/hessian42-gpu-exec:19072026 -f Hessian42_GPU.Dockerfile .
 
 ############################
 # Stage 1: fetcher
 ############################
-FROM nvcr.io/nvidia/cuda-dl-base:25.06-cuda12.9-devel-ubuntu24.04 AS fetcher
+FROM nvcr.io/nvidia/cuda-dl-base:25.03-cuda12.8-devel-ubuntu24.04 AS fetcher
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -13,7 +13,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     rm -f /etc/apt/apt.conf.d/docker-clean \
  && apt-get update -yqq \
  && DEBIAN_FRONTEND=noninteractive apt-get install -yqq --no-install-recommends \
-      ca-certificates curl unzip wget xz-utils
+      ca-certificates curl git unzip wget xz-utils
 
 # Swift toolchain (pruned: drop macOS/cross artifacts, docs, static SDK)
 RUN mkdir -p /out \
@@ -59,11 +59,26 @@ RUN mkdir -p /out/multipl-e \
  && curl -fsSL -o /out/multipl-e/javatuples-1.2.jar \
       https://repo.mavenlibs.com/maven/org/javatuples/javatuples/1.2/javatuples-1.2.jar
 
+# nsjail (built from source, pinned to release 3.6).
+# Build deps live only in this stage; only the binary is copied out.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update -yqq \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -yqq --no-install-recommends \
+      autoconf bison flex g++ gcc libnl-route-3-dev libprotobuf-dev \
+      libseccomp-dev libtool make pkg-config protobuf-compiler \
+ && git clone --depth 1 --branch 3.6 --recursive \
+      https://github.com/google/nsjail.git /tmp/nsjail \
+ && make -C /tmp/nsjail -j"$(nproc)" \
+ && mkdir -p /out/bin \
+ && cp /tmp/nsjail/nsjail /out/bin/nsjail \
+ && rm -rf /tmp/nsjail
+
 
 ############################
 # Stage 2: final
 ############################
-FROM nvcr.io/nvidia/cuda-dl-base:25.06-cuda12.9-devel-ubuntu24.04
+FROM nvcr.io/nvidia/cuda-dl-base:25.03-cuda12.8-devel-ubuntu24.04
 # Ubuntu 24.04
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -164,9 +179,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       apt-listchanges \
       apt-transport-https \
       apt-utils \
+      autoconf \
       bat \
       bc \
       bison \
+      bubblewrap \
       check \
       cmake \
       daemontools \
@@ -177,6 +194,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       emacs \
       erlang \
       erlang-base \
+      flex \
       fp-compiler \
       ghc \
       htop \
@@ -201,11 +219,15 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       libglib2.0-0 \
       libibverbs-dev \
       libncurses5-dev \
+      libnl-route-3-200 \
+      libnl-route-3-dev \
       libnuma-dev \
       libnuma1 \
       libomp-dev \
       libpng-dev \
+      libprotobuf-dev \
       libreadline-dev \
+      libseccomp2 \
       libsm6 \
       libsubunit-dev \
       libsubunit0 \
@@ -230,6 +252,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       parallel \
       perl \
       pkg-config \
+      protobuf-compiler \
       pybind11-dev \
       python-is-python3 \
       python3-pip \
@@ -361,6 +384,7 @@ COPY --from=fetcher /out/multipl-e                              /container/multi
 COPY --from=fetcher /out/aws-cli                                /usr/local/aws-cli
 COPY --from=fetcher /out/aws-bin/                               /usr/local/bin/
 COPY --from=fetcher /out/bin/enry                               /usr/local/bin/enry
+COPY --from=fetcher /out/bin/nsjail                             /usr/local/bin/nsjail
 
 # Single consolidated PATH
 ENV PATH="/container/clojure/bin:/container/swift-6.0.3-RELEASE-ubuntu24.04/usr/bin:/container/julia-1.10.11/bin:/container/joern-cli:${PATH}"
