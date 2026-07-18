@@ -50,7 +50,7 @@ RUN curl -fsSL -o /tmp/awscliv2.zip "https://awscli.amazonaws.com/awscli-exe-lin
 # Clojure
 RUN curl -fsSL -O https://github.com/clojure/brew-install/releases/latest/download/linux-install.sh \
  && chmod +x linux-install.sh \
- && ./linux-install.sh --prefix /out/clojure \
+ && ./linux-install.sh --prefix /container/clojure \
  && rm -f linux-install.sh
 
 # Java testing dependency
@@ -395,7 +395,7 @@ RUN gem install --no-document \
 # ---------------------------------------------------------------------------
 # Artifacts from the fetcher stage
 # ---------------------------------------------------------------------------
-COPY --from=fetcher /out/clojure                                /container/clojure
+COPY --from=fetcher /container/clojure                          /container/clojure
 COPY --from=fetcher /out/swift-6.0.3-RELEASE-ubuntu24.04        /container/swift-6.0.3-RELEASE-ubuntu24.04
 COPY --from=fetcher /out/julia-1.10.11                          /container/julia-1.10.11
 COPY --from=fetcher /out/joern-cli                              /container/joern-cli

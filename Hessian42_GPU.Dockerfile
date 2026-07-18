@@ -51,7 +51,7 @@ RUN curl -fsSL -o /tmp/awscliv2.zip "https://awscli.amazonaws.com/awscli-exe-lin
 # Clojure (installer writes a self-contained prefix)
 RUN curl -fsSL -O https://github.com/clojure/brew-install/releases/latest/download/linux-install.sh \
  && chmod +x linux-install.sh \
- && ./linux-install.sh --prefix /out/clojure \
+ && ./linux-install.sh --prefix /container/clojure \
  && rm -f linux-install.sh
 
 # Java testing dependency
@@ -74,6 +74,7 @@ ENV GO111MODULE="off" \
     JUPYTER_DATA_DIR=/run/determined/jupyter/data \
     JUPYTER_RUNTIME_DIR=/run/determined/jupyter/runtime \
     MAX_JOBS=64 \
+    PIP_BREAK_SYSTEM_PACKAGES=1 \
     PYTHONFAULTHANDLER=1 \
     PYTHONHASHSEED=0 \
     PYTHONUNBUFFERED=1
@@ -230,6 +231,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       perl \
       pkg-config \
       pybind11-dev \
+      python-is-python3 \
+      python3-pip \
       r-base \
       racket \
       ripgrep \
@@ -350,7 +353,7 @@ RUN gem install --no-document \
 # ---------------------------------------------------------------------------
 # Artifacts from the fetcher stage
 # ---------------------------------------------------------------------------
-COPY --from=fetcher /out/clojure                                /container/clojure
+COPY --from=fetcher /container/clojure                          /container/clojure
 COPY --from=fetcher /out/swift-6.0.3-RELEASE-ubuntu24.04        /container/swift-6.0.3-RELEASE-ubuntu24.04
 COPY --from=fetcher /out/julia-1.10.11                          /container/julia-1.10.11
 COPY --from=fetcher /out/joern-cli                              /container/joern-cli
