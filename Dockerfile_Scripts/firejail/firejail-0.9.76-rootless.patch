@@ -1,0 +1,207 @@
+diff --git a/src/firejail/firejail.h b/src/firejail/firejail.h
+index 0307395..bd57ede 100644
+--- a/src/firejail/firejail.h
++++ b/src/firejail/firejail.h
+@@ -36,14 +36,17 @@
+ #define DEFAULT_ROOT_PROFILE	"server"
+ #define MAX_INCLUDE_LEVEL 16		// include levels in profile files
+ 
++// rootless userns: chown to an unmapped uid/gid fails EINVAL/EPERM; tolerate
++#include <errno.h>
++#define ROOTLESS_CHOWN_OK (errno == EINVAL || errno == EPERM)
++
+ 
+ #define ASSERT_PERMS(file, uid, gid, mode) \
+ 	do { \
+ 		assert(file);\
+ 		struct stat s;\
+ 		if (stat(file, &s) == -1) errExit("stat");\
+-		assert(s.st_uid == uid);\
+-		assert(s.st_gid == gid);\
++		(void) (uid); (void) (gid);\
+ 		assert((s.st_mode & 07777) == (mode));\
+ 	} while (0)
+ #define ASSERT_PERMS_AS_USER(file, uid, gid, mode) \
+@@ -51,16 +54,14 @@
+ 		assert(file);\
+ 		struct stat s;\
+ 		if (stat_as_user(file, &s) == -1) errExit("stat");\
+-		assert(s.st_uid == uid);\
+-		assert(s.st_gid == gid);\
++		(void) (uid); (void) (gid);\
+ 		assert((s.st_mode & 07777) == (mode));\
+ 	} while (0)
+ #define ASSERT_PERMS_FD(fd, uid, gid, mode) \
+ 	do { \
+ 		struct stat s;\
+ 		if (fstat(fd, &s) == -1) errExit("fstat");\
+-		assert(s.st_uid == uid);\
+-		assert(s.st_gid == gid);\
++		(void) (uid); (void) (gid);\
+ 		assert((s.st_mode & 07777) == (mode));\
+ 	} while (0)
+ #define ASSERT_PERMS_STREAM(file, uid, gid, mode) \
+@@ -73,7 +74,7 @@
+ #define SET_PERMS_FD(fd, uid, gid, mode) \
+ 	do { \
+ 		if (fchmod(fd, (mode)) == -1)	errExit("chmod");\
+-		if (fchown(fd, uid, gid) == -1) errExit("chown");\
++		if (fchown(fd, uid, gid) == -1 && !ROOTLESS_CHOWN_OK) errExit("chown");\
+ 	} while (0)
+ #define SET_PERMS_STREAM(stream, uid, gid, mode) \
+ 	do { \
+diff --git a/src/firejail/fs.c b/src/firejail/fs.c
+index f5a80c6..c0debc1 100644
+--- a/src/firejail/fs.c
++++ b/src/firejail/fs.c
+@@ -504,8 +504,15 @@ void fs_tmpfs(const char *dir, unsigned check_owner) {
+ 	if (asprintf(&proc, "/proc/self/fd/%d", fd) == -1)
+ 		errExit("asprintf");
+ 	EUID_ROOT();
+-	if (mount("tmpfs", proc, "tmpfs", flags|MS_NOSUID|MS_NODEV, options) < 0)
+-		errExit("mounting tmpfs");
++	if (mount("tmpfs", proc, "tmpfs", flags|MS_NOSUID|MS_NODEV, options) < 0) {
++		char *options2;
++		if (asprintf(&options2, "mode=%o", s.st_mode & 07777) == -1)
++			errExit("asprintf");
++		if (errno != EINVAL ||
++		    mount("tmpfs", proc, "tmpfs", flags|MS_NOSUID|MS_NODEV, options2) < 0)
++			errExit("mounting tmpfs");
++		free(options2);
++	}
+ 	EUID_USER();
+ 	// check the last mount operation
+ 	MountData *mdata = get_last_mount();
+diff --git a/src/firejail/fs_home.c b/src/firejail/fs_home.c
+index 31c6e67..c0435e8 100644
+--- a/src/firejail/fs_home.c
++++ b/src/firejail/fs_home.c
+@@ -414,7 +414,7 @@ void fs_private(void) {
+ 				if (mkdir(homedir, S_IRWXU) == -1)
+ 					errExit("mkdir");
+ 			}
+-			if (chown(homedir, u, g) < 0)
++			if (chown(homedir, u, g) < 0 && !ROOTLESS_CHOWN_OK)
+ 				errExit("chown");
+ 			EUID_USER();
+ 			fs_logger2("mkdir", homedir);
+diff --git a/src/firejail/fs_hostname.c b/src/firejail/fs_hostname.c
+index 657132a..4bc5a48 100644
+--- a/src/firejail/fs_hostname.c
++++ b/src/firejail/fs_hostname.c
+@@ -153,8 +153,8 @@ void fs_mount_hosts_file(void) {
+ 	struct stat s;
+ 	if (stat("/etc/hosts", &s) == -1)
+ 		return;
+-	// owned by root
+-	if (s.st_uid != 0)
++	// owned by root (or the userns overflow uid in rootless mode)
++	if (s.st_uid != 0 && s.st_uid != 65534)
+ 		goto errexit;
+ 
+ 	// bind-mount the file on top of /etc/hostname
+diff --git a/src/firejail/fs_lib.c b/src/firejail/fs_lib.c
+index 598d7e5..d8cbcdb 100644
+--- a/src/firejail/fs_lib.c
++++ b/src/firejail/fs_lib.c
+@@ -220,7 +220,7 @@ void fslib_mount_libs(const char *full_path, unsigned user) {
+ 	// create an empty RUN_LIB_FILE and allow the user to write to it
+ 	unlink(RUN_LIB_FILE);			  // in case is there
+ 	create_empty_file_as_root(RUN_LIB_FILE, 0644);
+-	if (user && chown(RUN_LIB_FILE, getuid(), getgid()))
++	if (user && chown(RUN_LIB_FILE, getuid(), getgid()) && !ROOTLESS_CHOWN_OK)
+ 		errExit("chown");
+ 
+ 	// run fldd to extract the list of files
+diff --git a/src/firejail/fs_logger.c b/src/firejail/fs_logger.c
+index 0aa725d..7d3fcf9 100644
+--- a/src/firejail/fs_logger.c
++++ b/src/firejail/fs_logger.c
+@@ -114,7 +114,7 @@ void fs_logger_print(void) {
+ }
+ 
+ void fs_logger_change_owner(void) {
+-	if (chown(RUN_FSLOGGER_FILE, 0, 0) == -1)
++	if (chown(RUN_FSLOGGER_FILE, 0, 0) == -1 && !ROOTLESS_CHOWN_OK)
+ 		errExit("chown");
+ }
+ 
+diff --git a/src/firejail/preproc.c b/src/firejail/preproc.c
+index 9373a40..e78259b 100644
+--- a/src/firejail/preproc.c
++++ b/src/firejail/preproc.c
+@@ -97,7 +97,7 @@ static void preproc_lock_file(const char *path, int *lockfd_ptr) {
+ 		errExit("open");
+ 	}
+ 
+-	if (fchown(lockfd, 0, 0) == -1) {
++	if (fchown(lockfd, 0, 0) == -1 && !ROOTLESS_CHOWN_OK) {
+ 		fprintf(stderr, "Error: cannot chown root:root %s\n", path);
+ 		errExit("fchown");
+ 	}
+diff --git a/src/firejail/util.c b/src/firejail/util.c
+index 6dc75a6..948c742 100644
+--- a/src/firejail/util.c
++++ b/src/firejail/util.c
+@@ -176,7 +176,7 @@ static void clean_supplementary_groups(gid_t gid) {
+ 	int ngroups = MAX_GROUPS;
+ 
+ 	if (arg_nogroups && check_can_drop_all_groups()) {
+-		if (setgroups(0, NULL) < 0)
++		if (setgroups(0, NULL) < 0 && errno != EPERM)
+ 			errExit("setgroups");
+ 		if (arg_debug)
+ 			printf("No supplementary groups\n");
+@@ -268,7 +268,7 @@ static void clean_supplementary_groups(gid_t gid) {
+ 	return;
+ 
+ clean_all:
+-	if (setgroups(0, NULL) < 0)
++	if (setgroups(0, NULL) < 0 && errno != EPERM)
+ 		errExit("setgroups");
+ }
+ 
+@@ -284,7 +284,7 @@ void drop_privs(int force_nogroups) {
+ 	// configure supplementary groups
+ 	EUID_ROOT();
+ 	if (gid == 0 || force_nogroups) {
+-		if (setgroups(0, NULL) < 0)
++		if (setgroups(0, NULL) < 0 && errno != EPERM)
+ 			errExit("setgroups");
+ 		if (arg_debug)
+ 			printf("No supplementary groups\n");
+@@ -461,7 +461,7 @@ int copy_file(const char *srcname, const char *destname, uid_t uid, gid_t gid, m
+ 
+ 	int errors = copy_file_by_fd(src, dst);
+ 	if (!errors) {
+-		if (fchown(dst, uid, gid) == -1)
++		if (fchown(dst, uid, gid) == -1 && !ROOTLESS_CHOWN_OK)
+ 			errExit("fchown");
+ 		if (fchmod(dst, mode) == -1)
+ 			errExit("fchmod");
+@@ -525,7 +525,7 @@ void copy_file_from_user_to_root(const char *srcname, const char *destname, uid_
+ 	}
+ 	// wait for the child to finish
+ 	waitpid(child, NULL, 0);
+-	if (fchown(dst, uid, gid) == -1)
++	if (fchown(dst, uid, gid) == -1 && !ROOTLESS_CHOWN_OK)
+ 		errExit("fchown");
+ 	if (fchmod(dst, mode) == -1)
+ 		errExit("fchmod");
+@@ -1110,11 +1110,14 @@ void mkdir_attr(const char *fname, mode_t mode, uid_t uid, gid_t gid) {
+ 	printf("\n");
+ #endif
+ 	if (mkdir(fname, mode) == -1 ||
+-	    chmod(fname, mode) == -1 ||
+-	    chown(fname, uid, gid)) {
++	    chmod(fname, mode) == -1) {
+ 		fprintf(stderr, "Error: failed to create %s directory\n", fname);
+ 		errExit("mkdir/chmod");
+ 	}
++	if (chown(fname, uid, gid) && !ROOTLESS_CHOWN_OK) {
++		fprintf(stderr, "Error: failed to chown %s directory\n", fname);
++		errExit("chown");
++	}
+ 
+ 	ASSERT_PERMS(fname, uid, gid, mode);
+ }

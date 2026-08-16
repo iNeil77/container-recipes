@@ -1,0 +1,187 @@
+Make firejail usable inside a container that forbids mounting procfs.
+
+Managed container runtimes (Docker/Determined/K8s) hand the container a /proc
+assembled by the runtime: masked entries (/proc/kcore, /proc/keys,
+/proc/sched_debug, ...) are locked bind mounts over it. The kernel then refuses
+a *fresh* procfs mount to anyone who is merely root in a user namespace, even
+as PID 1 of a freshly created PID namespace, because no fully visible procfs
+mount exists to inherit the restrictions from (mnt_already_visible() in
+fs/namespace.c):
+
+    mount("proc", <anywhere>, "proc", 0, NULL)  ->  EPERM
+
+(tmpfs mounts, user/mount/pid namespaces, seccomp and rlimits all still work;
+only procfs and sysfs are refused -- and pivot_root is blocked by the runtime's
+seccomp profile, which is why bwrap/nsjail cannot substitute here.) Stock
+firejail treats the failed mount as fatal:
+
+    Error: fs.c:867: fs_basic_fs: mounting /proc: Operation not permitted
+
+so no sandbox starts at all.
+
+This patch keeps the inherited /proc during sandbox setup -- firejail's own
+mount bookkeeping reads /proc/self/{mountinfo,fdinfo} while applying
+whitelists/blacklists -- and shadows it with an EMPTY read-only tmpfs as the
+last step before the application is started. For the jailed application that is
+*stronger* than the /proc it replaces: the inherited procfs belongs to the
+container's PID namespace, so without shadowing, model-generated code could
+read /proc/<trainer pid>/environ (WANDB/HF tokens) and the cmdlines of
+everything running on the node. The cost is that /proc readers inside the jail
+(ps, psutil, /proc/cpuinfo) see an empty directory; python's exec, subprocess
+and multiprocessing are unaffected.
+
+Two places then have to survive without procfs:
+
+  * close_all() enumerates /proc/self/fd to close firejail's own descriptors
+    before exec. It must not bail out -- a leaked directory descriptor is an
+    openat() escape route -- so it falls back to close_range(3, ~0U) and, if
+    that syscall is unavailable, to a plain close() loop.
+  * monitor_application() scans /proc for leftover processes after the
+    monitored one exits; on an empty /proc it simply finds none and shuts the
+    sandbox down. Nothing can survive that anyway: firejail is PID 1 of the
+    sandbox's PID namespace, which dies with its init.
+
+diff --git a/src/firejail/firejail.h b/src/firejail/firejail.h
+--- a/src/firejail/firejail.h
++++ b/src/firejail/firejail.h
+@@ -466,6 +466,9 @@
+ void disable_config(void);
+ // build a basic read-only filesystem
+ void fs_basic_fs(void);
++// replace /proc with an empty tmpfs when a fresh procfs mount was denied;
++// call as the last setup step, after all /proc-dependent setup is done
++void fs_proc_shadow_late(void);
+ void fs_private_tmp(void);
+ void fs_private_cache(void);
+ void fs_mnt(const int enforce);
+diff --git a/src/firejail/fs.c b/src/firejail/fs.c
+--- a/src/firejail/fs.c
++++ b/src/firejail/fs.c
+@@ -857,6 +857,22 @@
+ }
+ 
+ 
++// set when the kernel refused a fresh procfs mount (container runtimes)
++static int proc_mount_denied = 0;
++
++// Shadow the inherited /proc with an empty tmpfs. Deferred to the very end of
++// sandbox setup because firejail's own mount bookkeeping needs a working /proc.
++void fs_proc_shadow_late(void) {
++	if (!proc_mount_denied)
++		return;
++	if (arg_debug)
++		printf("Replacing /proc with an empty tmpfs\n");
++	if (mount("tmpfs", "/proc", "tmpfs",
++		  MS_NOSUID | MS_NOEXEC | MS_NODEV | MS_RDONLY, "mode=555") < 0)
++		errExit("mounting tmpfs on /proc");
++	fs_logger("tmpfs /proc");
++}
++
+ // build a basic read-only filesystem
+ void fs_basic_fs(void) {
+ 	uid_t uid = getuid();
+@@ -864,8 +880,15 @@
+ 	// mount a new proc filesystem
+ 	if (arg_debug)
+ 		printf("Mounting /proc filesystem representing the PID namespace\n");
+-	if (mount("proc", "/proc", "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV | MS_REC, NULL) < 0)
+-		errExit("mounting /proc");
++	if (mount("proc", "/proc", "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV | MS_REC, NULL) < 0) {
++		// container runtimes refuse a fresh procfs even to a userns root;
++		// keep the inherited one for setup and hide it before the exec
++		if (errno != EPERM)
++			errExit("mounting /proc");
++		proc_mount_denied = 1;
++		fwarning("procfs cannot be mounted in this container; "
++			"/proc will be an empty tmpfs inside the sandbox\n");
++	}
+ 
+ 	EUID_USER();
+ 	if (arg_debug)
+diff --git a/src/firejail/util.c b/src/firejail/util.c
+--- a/src/firejail/util.c
++++ b/src/firejail/util.c
+@@ -1338,14 +1338,65 @@
+ 	return rv;
+ }
+ 
++// Close descriptors without enumerating /proc/self/fd, for sandboxes that have
++// no procfs: a container which forbids mounting procfs gets an empty tmpfs on
++// /proc instead (see fs_proc_shadow_late()).  Bailing out instead is not an
++// option -- every descriptor firejail still holds is inherited by the jailed
++// process, and a leaked directory descriptor is an openat() escape route.
++static void close_all_no_procfs(int *keep_list, size_t sz) {
++	// one syscall for the common case (Linux 5.9+, backported to some 4.18
++	// kernels); usable only when nothing has to be kept
++	if (keep_list == NULL || sz == 0) {
++#ifdef __NR_close_range
++		if (syscall(__NR_close_range, 3, ~0U, 0) == 0)
++			return;
++#endif
++	}
++
++	// otherwise walk every descriptor the process can hold
++	long max = sysconf(_SC_OPEN_MAX);
++	if (max < 1024)
++		max = 1024;
++	if (max > 65536)
++		max = 65536;
++
++	int fd;
++	for (fd = 3; fd < (int) max; fd++) {
++		int keep = 0;
++		if (keep_list) {
++			size_t i;
++			for (i = 0; i < sz; i++) {
++				if (keep_list[i] == fd) {
++					keep = 1;
++					break;
++				}
++			}
++		}
++#ifdef HAVE_LANDLOCK
++		// closed by the "ll_restrict" wrapper instead
++		if (fd == ll_get_fd())
++			keep = 1;
++#endif
++		if (!keep)
++			close(fd);
++	}
++}
++
+ void close_all(int *keep_list, size_t sz) {
+ 	DIR *dir;
+ 	if (!(dir = opendir("/proc/self/fd"))) {
++		// /proc is an empty tmpfs (no procfs in this container): go straight
++		// to the fallback, the retry below would only add 2s to every sandbox
++		if (errno == ENOENT || errno == ENOTDIR) {
++			close_all_no_procfs(keep_list, sz);
++			return;
++		}
+ 		// sleep 2 seconds and try again
+ 		sleep(2);
+ 		if (!(dir = opendir("/proc/self/fd"))) {
+-			fprintf(stderr, "Error: cannot open /proc/self/fd directory\n");
+-			exit(1);
++			fwarning("cannot open /proc/self/fd (%s), closing descriptors blindly\n", strerror(errno));
++			close_all_no_procfs(keep_list, sz);
++			return;
+ 		}
+ 	}
+ 	struct dirent *entry;
+diff --git a/src/firejail/sandbox.c b/src/firejail/sandbox.c
+--- a/src/firejail/sandbox.c
++++ b/src/firejail/sandbox.c
+@@ -1319,6 +1319,12 @@
+ 	}
+ 
+ 	//****************************************
++	// hide /proc if a fresh procfs mount was denied (container runtimes);
++	// last setup step, nothing below reads /proc before the exec
++	//****************************************
++	fs_proc_shadow_late();
++
++	//****************************************
+ 	// drop privileges
+ 	//****************************************
+ 	drop_privs(0);

@@ -74,6 +74,28 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
  && cp /tmp/nsjail/nsjail /out/bin/nsjail \
  && rm -rf /tmp/nsjail
 
+# firejail (rootless, built from source, pinned to release 0.9.76). The distro/PPA
+# firejail is setuid-root and gets refused by the reward executor's self-check
+# (it would run model code unjailed); this build is patched for a single-uid user
+# namespace + container /proc and configured --disable-suid, so it is the usable
+# one. Build deps live only in this stage; only the installed prefix is copied out.
+COPY Dockerfile_Scripts/firejail /tmp/firejail-src
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update -yqq \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -yqq --no-install-recommends \
+      gcc make patch \
+ && curl -fsSL -o /tmp/firejail.tar.gz \
+      https://github.com/netblue30/firejail/archive/refs/tags/0.9.76.tar.gz \
+ && tar xzf /tmp/firejail.tar.gz -C /tmp \
+ && cd /tmp/firejail-0.9.76 \
+ && patch -p1 < /tmp/firejail-src/firejail-0.9.76-rootless.patch \
+ && patch -p1 < /tmp/firejail-src/firejail-0.9.76-container-proc.patch \
+ && ./configure --prefix=/opt/firejail --disable-suid --disable-sandbox-check --disable-man \
+ && make -j"$(nproc)" \
+ && make install \
+ && rm -rf /tmp/firejail-0.9.76 /tmp/firejail.tar.gz /tmp/firejail-src
+
 
 ############################
 # Stage 2: final
@@ -116,7 +138,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
  && add-apt-repository -y --no-update restricted \
  \
  # --- PPAs ---
- && add-apt-repository -y --no-update ppa:deki/firejail \
  && add-apt-repository -y --no-update ppa:ondrej/php \
  && add-apt-repository -y --no-update ppa:longsleep/golang-backports \
  \
@@ -274,9 +295,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       util-linux \
       zlib1g-dev \
       \
-      firejail \
-      firejail-profiles \
-      \
       google-cloud-cli \
       google-cloud-cli-app-engine-go \
       google-cloud-cli-app-engine-java \
@@ -385,9 +403,13 @@ COPY --from=fetcher /out/aws-cli                                /usr/local/aws-c
 COPY --from=fetcher /out/aws-bin/                               /usr/local/bin/
 COPY --from=fetcher /out/bin/enry                               /usr/local/bin/enry
 COPY --from=fetcher /out/bin/nsjail                             /usr/local/bin/nsjail
+COPY --from=fetcher /opt/firejail                               /opt/firejail
 
-# Single consolidated PATH
-ENV PATH="/container/clojure/bin:/container/swift-6.0.3-RELEASE-ubuntu24.04/usr/bin:/container/julia-1.10.11/bin:/container/joern-cli:${PATH}"
+# Single consolidated PATH (rootless firejail from the fetcher stage ahead of any
+# distro binary), plus FIREJAIL_BIN so the reward executor uses this build by
+# default (an externally-exported FIREJAIL_BIN still overrides it).
+ENV PATH="/opt/firejail/bin:/container/clojure/bin:/container/swift-6.0.3-RELEASE-ubuntu24.04/usr/bin:/container/julia-1.10.11/bin:/container/joern-cli:${PATH}" \
+    FIREJAIL_BIN="/opt/firejail/bin/firejail"
 
 # Warm the Clojure dependency cache (~/.m2) — intentionally kept
 RUN clojure -P
