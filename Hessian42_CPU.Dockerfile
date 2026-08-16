@@ -4,6 +4,8 @@ FROM determinedai/pytorch-cpu-hpc:0.38.0
 SHELL ["/bin/bash", "-c"]
 
 ENV PYTHONUNBUFFERED=1 \
+    PYTHONHASHSEED=0 \
+    PYTHONFAULTHANDLER=1 \
     GOPATH="/container/go" \
     GO111MODULE="off"
 
@@ -99,9 +101,46 @@ RUN apt update --yes --quiet \
         vim \
         wget \
         zlib1g-dev \
+        \
+        bat \
+        bubblewrap \
+        dumb-init \
+        libjemalloc2 \
+        numactl \
+        patch \
+        pigz \
+        ripgrep \
+        rsync \
+        screen \
+        strace \
+        zstd \
     && apt autoremove \
     && apt clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Rootless firejail (built from source, pinned to release 0.9.76) -- the reward
+# executor's usable code-execution sandbox. The distro/PPA firejail is setuid-root
+# and is refused by the executor's self-check (it would run model code unjailed);
+# this is the same patched, --disable-suid build shipped in the GPU image (see
+# scripts/firejail in the MultiRL repo). gcc/make come from build-essential; patch
+# and curl from the apt install above.
+COPY Dockerfile_Scripts/firejail /tmp/firejail-src
+RUN curl -fsSL -o /tmp/firejail.tar.gz \
+      https://github.com/netblue30/firejail/archive/refs/tags/0.9.76.tar.gz \
+ && tar xzf /tmp/firejail.tar.gz -C /tmp \
+ && cd /tmp/firejail-0.9.76 \
+ && patch -p1 < /tmp/firejail-src/firejail-0.9.76-rootless.patch \
+ && patch -p1 < /tmp/firejail-src/firejail-0.9.76-container-proc.patch \
+ && ./configure --prefix=/opt/firejail --disable-suid --disable-sandbox-check --disable-man \
+ && make -j"$(nproc)" \
+ && make install \
+ && rm -rf /tmp/firejail-0.9.76 /tmp/firejail.tar.gz /tmp/firejail-src
+ENV PATH="/opt/firejail/bin:${PATH}" \
+    FIREJAIL_BIN="/opt/firejail/bin/firejail"
+
+# RL profiling QoL (CPU-side): py-spy (attach-and-profile live PIDs), memray
+# (native+Python memory profiler for leak/fragmentation hunting).
+RUN python3 -m pip install --no-cache-dir py-spy memray
 
 # Setup Perl testing dependencies
 RUN perl -MCPAN -e 'install Test::Deep' \
