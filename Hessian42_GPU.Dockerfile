@@ -59,7 +59,12 @@ RUN mkdir -p /out/multipl-e \
  && curl -fsSL -o /out/multipl-e/javatuples-1.2.jar \
       https://repo.mavenlibs.com/maven/org/javatuples/javatuples/1.2/javatuples-1.2.jar
 
-# nsjail (built from source, pinned to release 3.6).
+# nsjail (built from source, pinned to release 3.6). Usable as a rootless
+# per-exec jail in this runtime via `-Mo --no_pivotroot` (it falls back to
+# mount(MS_MOVE)+chroot, avoiding the seccomp-blocked pivot_root); the reward
+# path uses firejail, so this stays only a potential fallback backend. (bwrap,
+# by contrast, calls pivot_root unconditionally and cannot jail here except on
+# a Kubernetes RM via a securityContext.)
 # Build deps live only in this stage; only the binary is copied out.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -295,6 +300,13 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       util-linux \
       zlib1g-dev \
       \
+      dumb-init \
+      libjemalloc2 \
+      numactl \
+      pigz \
+      strace \
+      zstd \
+      \
       google-cloud-cli \
       google-cloud-cli-app-engine-go \
       google-cloud-cli-app-engine-java \
@@ -424,5 +436,6 @@ RUN /tmp/Dockerfile_Scripts/add_det_nobody_user.sh \
 RUN --mount=type=cache,target=/root/.cache/pip \
     python -m pip install --no-cache-dir -r /tmp/Dockerfile_Scripts/additional-requirements-torch.txt \
  && python -m pip install --no-cache-dir -r /tmp/Dockerfile_Scripts/notebook-requirements.txt \
+ && python -m pip install --no-cache-dir py-spy memray nvitop \
  && jupyter labextension disable "@jupyterlab/apputils-extension:announcements" \
  && rm -rf /tmp/Dockerfile_Scripts
