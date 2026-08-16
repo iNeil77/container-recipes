@@ -4,7 +4,7 @@
 ############################
 # Stage 1: fetcher
 ############################
-FROM nvcr.io/nvidia/cuda-dl-base:25.03-cuda12.8-devel-ubuntu24.04 AS fetcher
+FROM nvcr.io/nvidia/cuda-dl-base:26.07-cuda13.3-devel-ubuntu24.04 AS fetcher
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -105,7 +105,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 ############################
 # Stage 2: final
 ############################
-FROM nvcr.io/nvidia/cuda-dl-base:25.03-cuda12.8-devel-ubuntu24.04
+FROM nvcr.io/nvidia/cuda-dl-base:26.07-cuda13.3-devel-ubuntu24.04
 # Ubuntu 24.04
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
