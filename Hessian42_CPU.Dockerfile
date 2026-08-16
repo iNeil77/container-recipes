@@ -431,8 +431,14 @@ RUN /tmp/Dockerfile_Scripts/add_det_nobody_user.sh \
 
 # Jupyter (for Determined notebooks) + CPU-side profiling QoL. No torch stack
 # (additional-requirements-torch.txt) and no GPU monitors on this image.
+# pip installs onto the image's Python. rich (pulled by memray) wants a newer
+# Pygments than the distro-installed one, which pip cannot uninstall ("RECORD
+# file not found" -- installed by debian). Pre-install a pip-managed Pygments
+# with --ignore-installed so it shadows the distro copy in /usr/local (ahead of
+# /usr/lib on sys.path); nothing then tries to uninstall it.
 RUN --mount=type=cache,target=/root/.cache/pip \
-    python -m pip install --no-cache-dir -r /tmp/Dockerfile_Scripts/notebook-requirements.txt \
+    python -m pip install --no-cache-dir --ignore-installed pygments \
+ && python -m pip install --no-cache-dir -r /tmp/Dockerfile_Scripts/notebook-requirements.txt \
  && python -m pip install --no-cache-dir py-spy memray \
  && jupyter labextension disable "@jupyterlab/apputils-extension:announcements" \
  && rm -rf /tmp/Dockerfile_Scripts
