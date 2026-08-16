@@ -209,6 +209,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       apt-transport-https \
       apt-utils \
       autoconf \
+      build-essential \
+      gfortran \
+      python3-dev \
       bat \
       bc \
       bison \
